@@ -1,15 +1,36 @@
-import csv, tempfile, unittest
+import csv
+import tempfile
+import unittest
 from pathlib import Path
+
 from financial_data_pipeline.pipeline import ingest_csv, snapshot
 
+
 class TestPipeline(unittest.TestCase):
- def test_point_in_time(self):
-  with tempfile.TemporaryDirectory() as d:
-   root=Path(__file__).parents[1]; db=str(Path(d)/"x.db"); out=str(Path(d)/"out.csv")
-   r=ingest_csv(str(root/"data/sample_financials.csv"),db); self.assertEqual(r["accepted"],7)
-   n=snapshot(db,"2025-04-01",out); self.assertEqual(n,6)
-   rows=list(csv.DictReader(open(out,encoding="utf-8")))
-   self.assertTrue(all(x["available_date"]<="2025-04-01" for x in rows))
-   rev=next(x for x in rows if x["company_id"]=="SYN001" and x["metric"]=="revenue")
-   self.assertEqual(rev["period_end"],"2024-12-31")
-if __name__=="__main__": unittest.main()
+    def test_point_in_time(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(__file__).parents[1]
+            db_path = str(Path(temp_dir) / "financials.db")
+            output_path = str(Path(temp_dir) / "snapshot.csv")
+
+            result = ingest_csv(str(root / "data" / "sample_financials.csv"), db_path)
+            self.assertEqual(result["accepted"], 7)
+
+            row_count = snapshot(db_path, "2025-04-01", output_path)
+            self.assertEqual(row_count, 6)
+
+            with open(output_path, encoding="utf-8", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+
+            self.assertTrue(
+                all(row["available_date"] <= "2025-04-01" for row in rows)
+            )
+            revenue = next(
+                row for row in rows
+                if row["company_id"] == "SYN001" and row["metric"] == "revenue"
+            )
+            self.assertEqual(revenue["period_end"], "2024-12-31")
+
+
+if __name__ == "__main__":
+    unittest.main()
